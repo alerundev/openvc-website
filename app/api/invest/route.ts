@@ -93,12 +93,18 @@ export async function POST(req: NextRequest) {
     const threadId = threadData?.channel_id ?? threadData?.id;
     console.log("Thread ID:", threadId, "| threadData:", JSON.stringify(threadData));
 
-    // 2. Anthropic으로 PDF 분석 (비동기 — 사용자 응답 차단 안 함)
+    // 2. Anthropic으로 PDF 분석 (동기 실행)
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (apiKey && threadId) {
-      analyzeAndReply({ apiKey, name, email, file, fileBuffer, threadId, webhookUrl: webhookUrl! }).catch((e) =>
-        console.error("AI analysis error:", e)
-      );
+      console.log("Starting AI analysis for thread:", threadId);
+      try {
+        await analyzeAndReply({ apiKey, name, email, file, fileBuffer, threadId, webhookUrl: webhookUrl! });
+        console.log("AI analysis complete");
+      } catch (e) {
+        console.error("AI analysis error:", e);
+      }
+    } else {
+      console.log("Skipping AI analysis - apiKey:", !!apiKey, "threadId:", threadId);
     }
 
     return NextResponse.json({ success: true });
