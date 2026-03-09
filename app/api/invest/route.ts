@@ -195,16 +195,30 @@ async function analyzeAndReply({
   }
 
   const replyUrl = `${webhookUrl}?thread_id=${threadId}`;
-  console.log("Posting reply to:", replyUrl);
+  const fullContent = `## 🤖 AI 투자 검토 의견\n\n${analysisText}`;
 
-  const replyRes = await fetch(replyUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      content: `## 🤖 AI 투자 검토 의견\n\n${analysisText}`,
-    }),
-  });
+  // Discord 2000자 제한 → 청크로 분할
+  const chunks: string[] = [];
+  let remaining = fullContent;
+  while (remaining.length > 0) {
+    if (remaining.length <= 2000) {
+      chunks.push(remaining);
+      break;
+    }
+    // 1900자 근처에서 줄바꿈 기준으로 자르기
+    let cutAt = remaining.lastIndexOf("\n", 1900);
+    if (cutAt < 500) cutAt = 1900;
+    chunks.push(remaining.slice(0, cutAt));
+    remaining = remaining.slice(cutAt).trimStart();
+  }
 
-  const replyBody = await replyRes.text();
-  console.log("Discord reply status:", replyRes.status, "| body:", replyBody);
+  for (const chunk of chunks) {
+    const res = await fetch(replyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: chunk }),
+    });
+    const body = await res.text();
+    console.log("Discord reply status:", res.status, body.slice(0, 100));
+  }
 }
