@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "서버 설정 오류입니다." }, { status: 500 });
     }
 
+    // 1. Discord 포럼에 포스팅 생성
     const discordForm = new FormData();
-
     const payload = {
       thread_name: `[투자문의] ${name}`,
       content: [
@@ -40,15 +40,45 @@ export async function POST(req: NextRequest) {
       discordForm.append("files[0]", blob, file.name);
     }
 
-    const res = await fetch(webhookUrl, {
+    const discordRes = await fetch(webhookUrl, {
       method: "POST",
       body: discordForm,
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
+    if (!discordRes.ok) {
+      const errText = await discordRes.text();
       console.error("Discord webhook error:", errText);
       return NextResponse.json({ error: "전송에 실패했습니다." }, { status: 500 });
+    }
+
+    // 2. OpenClaw에 분석 요청 (비동기 — 사용자 응답 차단 안 함)
+    const openclawUrl = process.env.OPENCLAW_GATEWAY_URL;
+    const openclawToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+
+    if (openclawUrl && openclawToken) {
+      // Discord 포스팅 생성 후 약간 대기 (파일 업로드 완료 시간)
+      const threadInfo = await discordRes.json().catch(() => null);
+      const threadId = threadInfo?.id;
+
+      const triggerMessage = file
+        ? `새로운 투자 문의가 접수되었습니다.\n이름: ${name} / 이메일: ${email}\n포럼 스레드 ID: ${threadId ?? "확인 필요"}\n투자문의 포럼 채널(1480407447888728136)에서 미처리 포스팅을 확인하고 PDF를 분석하여 투자 검토 의견을 댓글로 달아주세요.`
+        : `새로운 투자 문의가 접수되었습니다 (IR 자료 없음).\n이름: ${name} / 이메일: ${email}`;
+
+      // fire-and-forget
+      fetch(`${openclawUrl}/tools/invoke`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openclawToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tool: "sessions_send",
+          args: {
+            sessionKey: "main",
+            message: triggerMessage,
+          },
+        }),
+      }).catch((e) => console.error("OpenClaw trigger error:", e));
     }
 
     return NextResponse.json({ success: true });
