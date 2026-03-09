@@ -132,7 +132,7 @@ async function analyzeAndReply({
       const base64Pdf = Buffer.from(fileBuffer).toString("base64");
 
       const response = await client.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-20241022",
         max_tokens: 2048,
         messages: [
           {
@@ -160,7 +160,7 @@ async function analyzeAndReply({
     } else {
       // IR 자료 없는 경우
       const response = await client.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-20241022",
         max_tokens: 512,
         messages: [
           {
