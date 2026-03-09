@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       discordForm.append("files[0]", blob, file.name);
     }
 
-    const discordRes = await fetch(webhookUrl, {
+    const discordRes = await fetch(`${webhookUrl}?wait=true`, {
       method: "POST",
       body: discordForm,
     });
@@ -90,12 +90,13 @@ export async function POST(req: NextRequest) {
     }
 
     const threadData = await discordRes.json().catch(() => null);
-    const threadId = threadData?.id;
+    const threadId = threadData?.channel_id ?? threadData?.id;
+    console.log("Thread ID:", threadId, "| threadData:", JSON.stringify(threadData));
 
     // 2. Anthropic으로 PDF 분석 (비동기 — 사용자 응답 차단 안 함)
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (apiKey && threadId) {
-      analyzeAndReply({ apiKey, name, email, file, fileBuffer, threadId }).catch((e) =>
+      analyzeAndReply({ apiKey, name, email, file, fileBuffer, threadId, webhookUrl: webhookUrl! }).catch((e) =>
         console.error("AI analysis error:", e)
       );
     }
@@ -114,6 +115,7 @@ async function analyzeAndReply({
   file,
   fileBuffer,
   threadId,
+  webhookUrl,
 }: {
   apiKey: string;
   name: string;
@@ -121,6 +123,7 @@ async function analyzeAndReply({
   file: File | null;
   fileBuffer: ArrayBuffer | null;
   threadId: string;
+  webhookUrl: string;
 }) {
   const client = new Anthropic({ apiKey });
 
@@ -179,16 +182,12 @@ async function analyzeAndReply({
     analysisText = `⚠️ AI 분석 중 오류가 발생했습니다. 수동으로 검토 부탁드립니다.\n\`\`\`\n${errMsg}\n\`\`\``;
   }
 
-  // 3. 분석 결과를 Discord 스레드에 댓글로 전달
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  if (!botToken) return;
+  // 3. 분석 결과를 Discord 스레드에 웹훅으로 댓글 전달
+  if (!webhookUrl) return;
 
-  await fetch(`https://discord.com/api/v10/channels/${threadId}/messages`, {
+  await fetch(`${webhookUrl}?thread_id=${threadId}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bot ${botToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       content: `## 🤖 AI 투자 검토 의견\n\n${analysisText}`,
     }),
