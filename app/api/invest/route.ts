@@ -132,7 +132,7 @@ async function analyzeAndReply({
       const base64Pdf = Buffer.from(fileBuffer).toString("base64");
 
       const response = await client.messages.create({
-        model: "claude-opus-4-5",
+        model: "claude-3-5-sonnet-20241022",
         max_tokens: 2048,
         messages: [
           {
@@ -160,7 +160,7 @@ async function analyzeAndReply({
     } else {
       // IR 자료 없는 경우
       const response = await client.messages.create({
-        model: "claude-opus-4-5",
+        model: "claude-3-5-sonnet-20241022",
         max_tokens: 512,
         messages: [
           {
@@ -173,9 +173,10 @@ async function analyzeAndReply({
       analysisText =
         response.content[0].type === "text" ? response.content[0].text : "분석 결과를 가져올 수 없습니다.";
     }
-  } catch (err) {
-    console.error("Anthropic API error:", err);
-    analysisText = "⚠️ AI 분석 중 오류가 발생했습니다. 수동으로 검토 부탁드립니다.";
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("Anthropic API error:", errMsg);
+    analysisText = `⚠️ AI 분석 중 오류가 발생했습니다. 수동으로 검토 부탁드립니다.\n\`\`\`\n${errMsg}\n\`\`\``;
   }
 
   // 3. 분석 결과를 Discord 스레드에 댓글로 전달
