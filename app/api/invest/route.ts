@@ -189,13 +189,22 @@ async function analyzeAndReply({
   }
 
   // 3. 분석 결과를 Discord 스레드에 웹훅으로 댓글 전달
-  if (!webhookUrl) return;
+  if (!webhookUrl) {
+    console.error("Discord reply failed: webhookUrl missing");
+    return;
+  }
 
-  await fetch(`${webhookUrl}?thread_id=${threadId}`, {
+  const replyUrl = `${webhookUrl}?thread_id=${threadId}`;
+  console.log("Posting reply to:", replyUrl);
+
+  const replyRes = await fetch(replyUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       content: `## 🤖 AI 투자 검토 의견\n\n${analysisText}`,
     }),
   });
+
+  const replyBody = await replyRes.text();
+  console.log("Discord reply status:", replyRes.status, "| body:", replyBody);
 }
